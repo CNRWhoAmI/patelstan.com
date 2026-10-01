@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+profiles/
+downloads/
+logs/
+accounts.json*
+state.json
+links.txt
+withdraw_state.json
+bio_state.json
+follow_state.json
+kabul_kontrol.json
+hedefler-*.txt
+tests/runs/
+# Kendi sunucuna yükleme scripti (sunucu adresi içerir)
+deploy.sh

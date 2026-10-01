@@ -1,0 +1,55 @@
+# sehirler.txt — "./bio_tara.sh --sehir ankara" yazınca bu kelimeler de Ankara sayılır.
+#
+# [şehir] satırı bir grup açar, altındaki her satır o şehre ait bir kelimedir.
+# Büyük/küçük harf ve Türkçe karakter fark etmez (odtu = ODTÜ).
+# Boşluk yerine nokta, alt çizgi ya da bitişik yazım da tutar (haci bayram = hacıbayram).
+# Sonu * olan kelime öntakıdır: "gazi uni*" → Gazi Üni, Gazi Üniversitesi, Gazi University.
+# * olmayan kelime tam kelime olarak aranır, ekleri tutar (bilkent → Bilkentli, ODTÜ'lü).
+
+[ankara]
+# Adında "Ankara" geçenler (Ankara Üniversitesi, Ankara Yıldırım Beyazıt, Ankara Hacı
+# Bayram Veli, Ankara Sosyal Bilimler, Ankara Müzik ve Güzel Sanatlar, Ankara Medipol,
+# Ankara Bilim) zaten "ankara" kelimesiyle bulunuyor. Buradakiler ek.
+
+# --- Devlet ---
+odtu                 # Orta Doğu Teknik
+metu
+orta dogu teknik
+hacettepe
+gazi uni*            # "gazi" tek başına değil: Gaziantep, şehit/gazi karışır
+gazi tip
+gazi hukuk
+gazi egitim
+aybu                 # Ankara Yıldırım Beyazıt
+yildirim beyazit
+ahbvu                # Ankara Hacı Bayram Veli
+haci bayram
+asbu                 # Ankara Sosyal Bilimler
+mgu                  # Ankara Müzik ve Güzel Sanatlar
+polis akademisi
+jsga                 # Jandarma ve Sahil Güvenlik Akademisi
+kara harp            # Kara Harp Okulu
+kho
+gata                 # Gülhane
+gulhane tip
+
+# --- Vakıf ---
+bilkent
+tobb                 # TOBB ETÜ ("tobb*" olmaz: TOBB Fen Lisesi'ni, "tobbfl"yi de yakalıyor)
+tobbetu              # bitişik yazım
+tedu                 # TED Üniversitesi ("TED Koleji" başka şehirlerde de var)
+ted uni*
+baskent              # Başkent Üni; "başkent" zaten Ankara demek
+cankaya uni*         # tek başına değil: İzmir'de de Çankaya var
+atilim uni*          # tek başına değil: "atılım" düz kelime
+ufuk uni*            # tek başına değil: Ufuk isim
+thku                 # Türk Hava Kurumu
+thk uni*
+ostim                # OSTİM Teknik
+ostimtech
+yuksek ihtisas
+lokman hekim
+
+# Bilerek yok: AÜ, HÜ, GÜ, ETÜ. Aynı kısaltmayı başka şehirlerdeki üniler de
+# kullanıyor (AÜ: Akdeniz, Anadolu; ETÜ: Erzurum Teknik), iki harf de düz yazıda
+# sık geçiyor. Yine de istersen buraya ekle; eşleşmeler ekranda [kelime] ile görünür.

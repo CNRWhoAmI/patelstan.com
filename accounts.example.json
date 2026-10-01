@@ -1,0 +1,12 @@
+[
+  {
+    "username": "birinci_hesap",
+    "password": "buraya_sifre",
+    "label": "Ana hesap"
+  },
+  {
+    "username": "ikinci_hesap",
+    "password": null,
+    "label": "Sifre sorulacak / IG_PW_IKINCI_HESAP env'den okunacak"
+  }
+]

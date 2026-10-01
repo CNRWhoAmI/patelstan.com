@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Geri Çek — bekleyen takip isteklerin</title>
+<meta name="description" content="Instagram'da gönderdiğin ama kabul edilmemiş takip isteklerini listeler. Dosyan cihazından çıkmaz, şifre istenmez.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E%E2%86%A9%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<main class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Ücretsiz · Kayıt yok · Şifre yok</p>
+    <h1>Gönderdiğin takip isteklerini geri çek</h1>
+    <p class="lede">Instagram kabul edilmemiş takip isteklerini toplu göstermiyor. Bilgi indirme dosyanı buraya bırak; kime istek attığını listeleyelim, sen de tek tek geri çek.</p>
+    <p class="privacy">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z"/></svg>
+      <span>Dosyan <strong>tarayıcında</strong> açılır, hiçbir sunucuya yüklenmez. Bu sayfanın dışarıya veri göndermesi teknik olarak engellidir.</span>
+    </p>
+  </header>
+
+  <details class="steps" id="steps" open>
+    <summary>Dosyayı nasıl alırım?</summary>
+    <ol>
+      <li>
+        <strong>Dışa aktarma iste.</strong>
+        Instagram › Ayarlar › <em>Hesaplar Merkezi</em> › <em>Bilgilerin ve izinlerin</em> › <em>Bilgilerini dışa aktar</em> › <em>Dışa aktarma oluştur</em>.
+      </li>
+      <li>
+        <strong>Sadece gerekeni seç.</strong>
+        Instagram hesabın › <em>Cihaza aktar</em> › bilgileri özelleştir: yalnızca <em>Takipçiler ve takip edilenler</em>. Tarih aralığı <em>Tüm zamanlar</em>, biçim HTML ya da JSON. Dosya küçük olur, içinde mesajların olmaz.
+      </li>
+      <li>
+        <strong>İndir ve buraya bırak.</strong>
+        Hazır olunca bildirim gelir (birkaç dakika – birkaç saat). Zip'i indir, aşağıya sürükle. Linkin süresi birkaç gün içinde doluyor.
+      </li>
+    </ol>
+  </details>
+
+  <label class="drop" id="drop" for="file">
+    <input type="file" id="file" accept=".zip,.html,.htm,.json,application/zip,application/json,text/html" multiple>
+    <span class="drop-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M11 16V7.8l-3.6 3.6L6 10l6-6 6 6-1.4 1.4L13 7.8V16h-2Zm-6 4v-5h2v3h10v-3h2v5H5Z"/></svg>
+    </span>
+    <span class="drop-title">Zip dosyasını buraya bırak</span>
+    <span class="drop-hint">ya da <u>dosya seç</u> · zip'in içinden çıkardığın <code>pending_follow_requests</code> dosyası da olur</span>
+  </label>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <section id="results" class="results" hidden>
+    <div class="summary">
+      <p class="count"><span id="doneCount">0</span> / <span id="totalCount">0</span> <span class="count-label">geri çekildi</span></p>
+      <progress id="progress" max="1" value="0"></progress>
+    </div>
+
+    <div class="callout">
+      Profilde <b>Requested</b> / <b>İstek gönderildi</b> yazıyorsa ona bas ve geri çek.
+      <b>Following</b> / <b>Takiptesin</b> yazıyorsa isteğini kabul etmiş — <b>dokunma</b>, yoksa takipten çıkarsın.
+    </div>
+
+    <div class="toolbar">
+      <button type="button" id="nextBtn" class="btn primary">Sıradakini aç ↗</button>
+      <label class="check-inline"><input type="checkbox" id="hideDone"> Tamamlananları gizle</label>
+      <label class="select-inline">
+        <span class="visually-hidden">Sıralama</span>
+        <select id="sort">
+          <option value="old">En eski istek önce</option>
+          <option value="new">En yeni istek önce</option>
+        </select>
+      </label>
+    </div>
+
+    <ol id="list" class="list"></ol>
+
+    <div class="footer-actions">
+      <button type="button" id="copyBtn" class="btn ghost">Kullanıcı adlarını kopyala</button>
+      <button type="button" id="clearBtn" class="btn ghost danger">Listeyi ve işaretleri sil</button>
+    </div>
+
+    <p class="note">Çok hızlı art arda iptal edersen Instagram bir süre engelleyebilir. “Daha sonra tekrar dene” uyarısı görürsen birkaç saat ara ver — listen ve işaretlerin bu tarayıcıda kayıtlı kalır, sayfaya dönünce kaldığın yerden devam edersin.</p>
+  </section>
+
+  <footer class="site-footer">
+    <p>Instagram veya Meta ile bağlantılı değildir. Hesabına giriş yapmaz, şifre istemez, çerez ya da analitik kullanmaz.</p>
+  </footer>
+
+</main>
+</body>
+</html>
