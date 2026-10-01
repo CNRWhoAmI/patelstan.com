@@ -51,7 +51,8 @@ print("\n[2] Instagram engeli (429): durur, eldekiler kaydedilir")
 tmp = setup("k2", ["acc_1", "block_x", "acc_2"])
 rc, out = run(tmp, ["--account", "test.hesap"])
 m = measurements(tmp)
-check("çıkış kodu 1, engel mesajı", rc == 1 and "Instagram engelledi (HTTP 429)" in out, out[-300:])
+check("çıkış kodu 1, engel mesajı ve Instagram'ın kendi mesajı",
+      rc == 1 and 'Instagram engelledi (HTTP 429): "Please wait a few minutes' in out, out[-300:])
 check("engelden sonrası sorulmadı, yarım ölçüm kaydedildi",
       m and m[-1]["sonuclar"] == {"acc_1": "kabul"} and m[-1]["tamamlandi"] is False, m)
 

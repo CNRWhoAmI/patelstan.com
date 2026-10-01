@@ -203,3 +203,24 @@ davranışı.
 - Takip isteği engelleri geri çekmeninkilerden uzun sürebilir; engelden sonra
   tekrar başlatmadan önce daha uzun bekle.
 - Sahte Instagram'a karşı testler: `.venv/bin/python tests/run_istek_tests.py`
+
+## Kabul oranını ölçme
+
+`istek_at` ile gönderilen isteklerden kaçının kabul edildiğini ölçer. Hiçbir
+şeye tıklamaz: her kişi için Instagram'ın profil bilgisini okur (gizli mi,
+takip ediliyor mu, istek bekliyor mu).
+
+```bash
+./kabul_kontrol.sh --account ornek.hesap
+```
+
+- Sonuçlar: kabul etti / hâlâ bekliyor / reddetti ya da istek düştü / açık hesap
+  (doğrudan takip edilmiş, kabul sayılmaz) / hesap yok.
+- Kabul oranı sadece gizli hesaplara giden istekler üzerinden hesaplanır.
+- "Reddetti ya da istek düştü": Instagram engel sırasında isteği sonradan geri
+  almışsa da buraya düşer; ikisi birbirinden ayırt edilemez.
+- Her çalıştırma `kabul_kontrol.json`'a tarihli ölçüm olarak eklenir (kişi bazlı,
+  sadece bu bilgisayarda). Birkaç gün arayla çalıştırıp oranın nasıl değiştiğini
+  görebilirsin. Ekrana sadece toplu sayılar basılır.
+- Instagram engellerse ya da oturum düşerse durur, o ana kadar ölçülenleri kaydeder.
+- Sahte Instagram'a karşı testler: `.venv/bin/python tests/run_kabul_tests.py`

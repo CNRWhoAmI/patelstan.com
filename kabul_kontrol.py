@@ -67,6 +67,15 @@ def classify(status: int, text: str) -> str:
     return "bekliyor" if user["requested_by_viewer"] else "yok"
 
 
+def error_message(text: str) -> str:
+    """Instagram'ın hata cevabındaki mesaj ("Please wait a few minutes…"); kişisel veri içermez."""
+    try:
+        msg = json.loads(text).get("message")
+    except (ValueError, AttributeError):
+        return ""
+    return str(msg)[:120] if msg else ""
+
+
 async def check_all(account: str, users: list[str], results: dict, args) -> str | None:
     """Sonuçları `results`'a yazar (Ctrl+C'de eldekiler kalsın); durma sebebini döner."""
     async with async_playwright() as pw:
@@ -81,12 +90,11 @@ async def check_all(account: str, users: list[str], results: dict, args) -> str 
                     result = classify(r["status"], r["text"])
                 except PWError as exc:
                     r, result = {"status": str(exc).splitlines()[0][:80]}, "bozuk"
-                if result == "engel":
-                    log(f"[{n}/{len(users)}] Instagram engelledi (HTTP {r['status']}) — durdu.")
-                    return "engel"
-                if result == "bozuk":
-                    log(f"[{n}/{len(users)}] Instagram'ın yanıtı beklenen gibi değil (HTTP {r['status']}) — durdu.")
-                    return "bozuk"
+                if result in ("engel", "bozuk"):
+                    what = "Instagram engelledi" if result == "engel" else "Instagram'ın yanıtı beklenen gibi değil"
+                    msg = error_message(r.get("text", ""))
+                    log(f"[{n}/{len(users)}] {what} (HTTP {r['status']})" + (f': "{msg}"' if msg else "") + " — durdu.")
+                    return result
                 results[username] = result
                 log(f"[{n}/{len(users)}] {username}: {LABELS[result]}")
                 await asyncio.sleep(random.uniform(args.min_delay, args.max_delay))
@@ -147,7 +155,9 @@ def main() -> int:
     print("\n" + "=" * 64)
     print(summary(account, results, sent, now))
     if stop:
-        print(f"  Yarım kaldı: {stop}. Kontrol edilenler kaydedildi; tekrar çalıştırınca baştan ölçer.")
+        why = {"engel": "Instagram engelledi", "bozuk": "Instagram'ın yanıtı beklenen gibi değil"}.get(stop, stop)
+        saved = " Kontrol edilenler kaydedildi, tekrar" if results else " Tekrar"
+        print(f"  Yarım kaldı: {why}.{saved} çalıştırınca baştan ölçer.")
     if results:
         print(f"  Kayıt: {rel(RESULT_FILE)}")
     return 1 if stop else 0
