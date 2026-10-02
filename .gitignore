@@ -10,6 +10,8 @@ withdraw_state.json
 bio_state.json
 follow_state.json
 kabul_kontrol.json
+reddedenler-*.txt
+gunluk_state.json
 hedefler-*.txt
 tests/runs/
 # Kendi sunucuna yükleme scripti (sunucu adresi içerir)

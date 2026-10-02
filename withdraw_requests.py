@@ -551,6 +551,7 @@ class Run:
     parallel: int
     interval: float | None  # --hedef-dk: profiller arası ortak aralık (sn)
     counts: dict = field(default_factory=dict)
+    results: dict = field(default_factory=dict)  # bu çalıştırmada kullanıcı -> sonuç
     processed: int = 0
     succeeded: int = 0
     consecutive_fail: int = 0
@@ -571,6 +572,7 @@ class Run:
     def record(self, n: int, username: str, date: str, result: str) -> None:
         self.processed += 1
         self.counts[result] = self.counts.get(result, 0) + 1
+        self.results[username] = result
         where = f" ({date})" if date else ""
         log(f"[{n}/{self.total}] {username}{where}: {self.islem.labels.get(result, result)}")
         if self.args.dry_run:
@@ -846,7 +848,7 @@ def plan_speed(args: argparse.Namespace, count: int) -> tuple[int, float | None]
     return parallel, interval
 
 
-def execute(run: Run, todo: list[tuple[str, str]], list_size: int) -> int:
+def execute(run: Run, todo: list[tuple[str, str]], list_size: int | None) -> int:
     """Çalıştırır, ilerlemeyi ve hız kaydını yazar, özeti basar; çıkış kodunu döner."""
     args, islem = run.args, run.islem
     try:
@@ -869,7 +871,8 @@ def execute(run: Run, todo: list[tuple[str, str]], list_size: int) -> int:
     if run.stop_reason and run.stop_reason != "user":
         print(f"  durma sebebi: {STOP_TITLES.get(run.stop_reason, run.stop_reason)}")
     if not args.dry_run:
-        print(f"  Toplam {islem.noun} (tüm çalıştırmalar): {len(run.acc_state[islem.done])}/{list_size}")
+        if list_size is not None:  # günlük turdaki gibi listesiz çalıştırmada toplam anlamsız
+            print(f"  Toplam {islem.noun} (tüm çalıştırmalar): {len(run.acc_state[islem.done])}/{list_size}")
         print(f"  Hız kaydı: {rel(RATE_LOG)}")
     return 1 if run.stop_reason in STOP_RESULTS | {"silent"} else 0
 
@@ -889,27 +892,8 @@ def pick_account(given: str | None) -> str:
     return input("Kullanıcı adı: ").strip().lstrip("@")
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Bekleyen takip isteklerini geri çek")
-    ap.add_argument("--account", help="kullanıcı adı (tek hesap varsa otomatik)")
-    ap.add_argument("--file", help="pending_follow_requests.html/json yolu (varsayılan: en yeni export)")
-    ap.add_argument("--dry-run", action="store_true", help="tıklama, sadece durumları göster")
-    ap.add_argument("--limit", type=int, help="en fazla bu kadar işlem yap")
-    ap.add_argument("--min-delay", type=float, default=4, help="işlemler arası min bekleme (sn)")
-    ap.add_argument("--max-delay", type=float, default=6, help="işlemler arası max bekleme (sn)")
-    ap.add_argument("--hedef-dk", type=float, help="listeyi yaklaşık bu kadar dakikada bitir (sekme sayısı otomatik)")
-    ap.add_argument("--parallel", type=int, help="aynı anda kaç sekme (varsayılan 1; --hedef-dk ile otomatik)")
-    ap.add_argument("--newest-first", action="store_true", help="en yeni istekten başla")
-    ap.add_argument("--headless", action="store_true", help="tarayıcıyı gösterme")
-    ap.add_argument("--watch", action="store_true", help="izleme modu: yavaş, butonları işaretler")
-    args = ap.parse_args()
-
-    global WATCH
-    if args.watch:
-        WATCH = True
-        args.headless = False
-
-    account = pick_account(args.account)
+def export_source(args: argparse.Namespace, account: str) -> tuple[Path, str | None, list[tuple[str, str]]]:
+    """Export'taki bekleyen istekler: (dosya, dosyanın sahibi, [(kullanıcı, tarih)])."""
     source = Path(args.file).expanduser().resolve() if args.file else find_pending_file(account)
     if not source or not source.exists():
         files = find_pending_files()
@@ -938,16 +922,60 @@ def main() -> int:
     pending = load_pending(source)
     if not pending:
         sys.exit(f"HATA: {source} içinde bekleyen istek bulunamadı; dosya biçimi tanınmadı.")
+    return source, owner, pending
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Bekleyen takip isteklerini geri çek")
+    ap.add_argument("--account", help="kullanıcı adı (tek hesap varsa otomatik)")
+    source_group = ap.add_mutually_exclusive_group()
+    source_group.add_argument("--file", help="pending_follow_requests.html/json yolu (varsayılan: en yeni export)")
+    source_group.add_argument("--gonderilenler", action="store_true",
+                              help="export yerine istek_at ile bu hesaptan gönderilen istekleri geri çek")
+    ap.add_argument("--dry-run", action="store_true", help="tıklama, sadece durumları göster")
+    ap.add_argument("--limit", type=int, help="en fazla bu kadar işlem yap")
+    ap.add_argument("--min-delay", type=float, default=4, help="işlemler arası min bekleme (sn)")
+    ap.add_argument("--max-delay", type=float, default=6, help="işlemler arası max bekleme (sn)")
+    ap.add_argument("--hedef-dk", type=float, help="listeyi yaklaşık bu kadar dakikada bitir (sekme sayısı otomatik)")
+    ap.add_argument("--parallel", type=int, help="aynı anda kaç sekme (varsayılan 1; --hedef-dk ile otomatik)")
+    ap.add_argument("--newest-first", action="store_true", help="en yeni istekten başla")
+    ap.add_argument("--headless", action="store_true", help="tarayıcıyı gösterme")
+    ap.add_argument("--watch", action="store_true", help="izleme modu: yavaş, butonları işaretler")
+    args = ap.parse_args()
+
+    global WATCH
+    if args.watch:
+        WATCH = True
+        args.headless = False
+
+    account = pick_account(args.account)
+    if args.gonderilenler:
+        import istek_at  # istek_at bu modülü içe aktarıyor; döngü olmasın diye burada
+
+        source = istek_at.ISTEK_AT.state_path
+        sent = load_state(source).get(account, {}).get("sent", {})
+        if not sent:
+            sys.exit(f"HATA: @{account} için {source.name} içinde gönderilmiş istek yok.")
+        # (kullanıcı, gönderilme zamanı), export gibi en yeniden eskiye; aşağıda eskiden başlanır
+        pending = sorted(sent.items(), key=lambda kv: kv[1], reverse=True)
+        owner = account
+    else:
+        source, owner, pending = export_source(args, account)
     log(f"hesap: @{account}" + ("" if owner else " (dosyanın sahibi okunamadı, doğru hesap olduğundan emin ol)"))
     if not args.newest_first:
         pending.reverse()  # dosya en yeniden eskiye sıralı; eskiden başla
 
     state = load_state(GERI_CEK.state_path)
     acc_state = state.setdefault(account, {"withdrawn": {}, "skipped": {}})
-    todo = [
-        (u, d) for u, d in pending
-        if u not in acc_state["withdrawn"] and acc_state["skipped"].get(u) not in FINAL_SKIPS
-    ]
+    if args.gonderilenler:
+        # Sadece bu gönderimden sonra henüz geri çekilmemiş olanlar. Eski geri çekme ve
+        # atlama kayıtları bu hesabın daha önceki isteklerine ait olabilir, onlara bakılmaz.
+        todo = [(u, d) for u, d in pending if acc_state["withdrawn"].get(u, "") <= d]
+    else:
+        todo = [
+            (u, d) for u, d in pending
+            if u not in acc_state["withdrawn"] and acc_state["skipped"].get(u) not in FINAL_SKIPS
+        ]
 
     log(f"kaynak: {rel(source)}")
     log(f"{len(pending)} bekleyen istek, {len(pending) - len(todo)} önceden halledilmiş, {len(todo)} kaldı.")

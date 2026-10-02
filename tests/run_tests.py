@@ -74,7 +74,7 @@ def leftover_chrome(tmp):
     return subprocess.run(["pgrep", "-f", f"user-data-dir={tmp}/profiles"], capture_output=True).returncode == 0
 
 
-wanted = set(sys.argv[1:]) or {str(i) for i in range(1, 9)}
+wanted = set(sys.argv[1:]) or {str(i) for i in range(1, 10)}
 
 if "1" in wanted:
     print("\n[1] karışık liste, --hedef-dk 0.5 (30 profil ~30 sn)")
@@ -168,6 +168,31 @@ if "8" in wanted:
     if hung or "Traceback" in out:
         print("   ---- çıktının sonu ----")
         print("\n".join("   " + line for line in out[-3500:].splitlines()))
+
+if "9" in wanted:
+    print("\n[9] --gonderilenler: istek_at'in gönderdiklerini geri çeker, export gerekmez")
+    tmp = setup("s9", [])
+    (tmp / "follow_state.json").write_text(json.dumps({"test.hesap": {"sent": {
+        "req_1": "2026-09-30T22:00:00", "req_2": "2026-09-30T22:01:00",
+        "nr_a": "2026-09-30T22:02:00", "req_3": "2026-09-30T22:03:00"}, "skipped": {}}}))
+    # req_1: eski "istek yok" kaydı, req_2: bu gönderimden ÖNCE geri çekilmiş -> ikisi de çekilmeli
+    # req_3: bu gönderimden SONRA zaten geri çekilmiş -> dokunulmamalı
+    (tmp / "state.json").write_text(json.dumps({"test.hesap": {
+        "withdrawn": {"req_2": "2026-09-01T10:00:00", "req_3": "2026-10-01T10:00:00"},
+        "skipped": {"req_1": "no_request"}}}))
+    rc, out, _, _ = run(tmp, ["--gonderilenler", "--min-delay", "0", "--max-delay", "0"])
+    st = state(tmp)
+    c = clicks(tmp)
+    check("çıkış kodu 0", rc == 0, out[-300:] if rc else rc)
+    check("kaynak follow_state.json: 4 istek, 1 önceden halledilmiş, 3 kaldı",
+          "follow_state.json" in out and "4 bekleyen istek, 1 önceden halledilmiş, 3 kaldı" in out, out[:600])
+    check("eski kayıtlara rağmen req_1 ve req_2 geri çekildi",
+          st["withdrawn"].get("req_1", "") > "2026-10" and st["withdrawn"].get("req_2", "") > "2026-10", st["withdrawn"])
+    check("gönderimden sonra zaten çekilmiş req_3'e dokunulmadı",
+          "clicked_requested=req_3" not in c and st["withdrawn"]["req_3"] == "2026-10-01T10:00:00")
+    check("isteği düşmüş nr_a: bekleyen istek yok", st["skipped"].get("nr_a") == "no_request", st["skipped"])
+    rc, out, _, _ = run(tmp, ["--gonderilenler", "--file", "x.html"])
+    check("--gonderilenler ile --file birlikte verilemez", rc != 0 and "not allowed with argument" in out, out[-200:])
 
 print(f"\nSONUÇ: {sum(ok)}/{len(ok)}")
 sys.exit(0 if all(ok) else 1)

@@ -8,12 +8,13 @@ Kullanıcı adının öneki sayfanın davranışını seçer:
   flash_ önce "Follow" görünüp sonra "Requested" olur · block_ Try Again Later
   silent_ tıklama sessizce geri alınır · chk_ doğrulama sayfasına yönlenir
 """
-import faulthandler, json, os, pathlib, re, signal, sys
+import dataclasses, faulthandler, json, os, pathlib, re, signal, sys
 from urllib.parse import urlparse
 
 faulthandler.register(signal.SIGUSR1, all_threads=True)  # takılırsa yığın dökümü
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import withdraw_requests as w  # noqa: E402
+import istek_at as ia  # noqa: E402
 
 cfg = json.loads(os.environ["MOCK_CFG"])
 tmp = pathlib.Path(cfg["tmp"])
@@ -22,6 +23,8 @@ w.PROFILES_DIR = tmp / "profiles"
 w.STATE_FILE = tmp / "state.json"
 w.LOG_DIR = tmp / "logs"
 w.RATE_LOG = tmp / "logs" / "rate_limit.log"
+# --gonderilenler istek_at'in kaydını okur; gerçeğine dokunulmasın
+ia.ISTEK_AT = dataclasses.replace(ia.ISTEK_AT, state_file=tmp / "follow_state.json")
 CLICKS = tmp / "clicks.log"
 
 PROFILE = r'''<!doctype html><html><body>

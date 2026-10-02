@@ -1,11 +1,15 @@
 """kabul_kontrol.main()'i sahte bir Instagram'a karşı çalıştırır.
 
 Gerçek profile, kayıtlara ya da internete dokunmaz: instagram.com istekleri buradaki
-sahte cevaplara yönlenir, geri kalan her şey engellenir; dosyalar MOCK_CFG["tmp"] altında.
-web_profile_info cevabını kullanıcı adının öneki seçer:
-  acc_ gizli, kabul etmiş · pend_ gizli, istek bekliyor · decl_ gizli, reddetmiş
-  pub_ açık hesap, takip ediliyor · gone_ 404 · block_ 429 "Please wait a few minutes"
-  login_ oturum düşmüş gibi HTML döner
+sahte sayfalara yönlenir, geri kalan her şey engellenir; dosyalar MOCK_CFG["tmp"] altında.
+Profil sayfası, gerçek site gibi profil bilgisini kendisi yükler (/graphql/query); yanıtta
+"Suggested for you" gibi başka bir hesabın nesnesi de var, karışmamalı.
+Kullanıcı adının öneki sayfanın davranışını seçer:
+  acc_ gizli, takipte (kabul etmiş) · pend_ Requested · decl_ Follow (reddetmiş)
+  pub_ açık hesap, takipte · unk_ takipte ama veride hesap yok · ssr_ veri HTML'e gömülü
+  gone_ hesap yok · block_ "Please wait a few minutes" · login_ giriş sayfasına yönlenir
+  blank_ buton yok (sayfa tanınmaz)
+MOCK_CFG["accept"]: bu çalıştırmada kabul etmiş sayılacak kullanıcılar (ölçümler arası değişim).
 """
 import dataclasses, json, os, pathlib, re, sys
 from urllib.parse import parse_qs, urlparse
@@ -23,13 +27,36 @@ w.LOG_DIR = tmp / "logs"
 w.RATE_LOG = tmp / "logs" / "rate_limit.log"
 ia.ISTEK_AT = dataclasses.replace(ia.ISTEK_AT, state_file=tmp / "follow_state.json")
 kk.RESULT_FILE = tmp / "kabul_kontrol.json"
+ACCEPT = set(cfg.get("accept", []))
 
-USERS = {
-    "acc": dict(is_private=True, followed_by_viewer=True, requested_by_viewer=False),
-    "pend": dict(is_private=True, followed_by_viewer=False, requested_by_viewer=True),
-    "decl": dict(is_private=True, followed_by_viewer=False, requested_by_viewer=False),
-    "pub": dict(is_private=False, followed_by_viewer=True, requested_by_viewer=False),
-}
+
+def kind_of(user):
+    return "acc" if user in ACCEPT else user.split("_")[0]
+
+PROFILE = r'''<!doctype html><html><head>__SSR__</head><body>
+<header><section><div><button>Ankara</button></div><div id="act"></div></section></header>
+<main></main>
+<script>
+const kind = "__KIND__", user = location.pathname.split('/')[1];
+const state = {pend: 'Requested', decl: 'Follow'}[kind] || 'Following';
+if (kind !== 'ssr') fetch('/graphql/query?u=' + encodeURIComponent(user), {method: 'POST'});
+if (kind !== 'blank') setTimeout(() => { document.getElementById('act').innerHTML = '<button>' + state + '</button>'; }, 400);
+</script></body></html>'''
+
+
+def graphql(user, kind):
+    """Satır satır JSON: önce başka bir hesabın nesnesi (ters gizlilikle), sonra hedef hesap."""
+    private = kind != "pub"
+    lines = [{"data": {"suggested": [{"username": "onerilen_hesap", "is_private": not private}]}}]
+    if kind != "unk":
+        lines.append({"data": {"user": {"username": user, "is_private": private, "friendship_status": {"following": True}}}})
+    return "\n".join(json.dumps(x) for x in lines)
+
+
+def ssr(user):
+    blocks = [{"require": [["x", {"user": {"username": "onerilen_hesap", "is_private": False}}]]},
+              {"require": [["x", {"user": {"username": user, "is_private": True}}]]}]
+    return "".join(f'<script type="application/json" data-sjs>{json.dumps(b)}</script>' for b in blocks)
 
 
 async def handler(route):
@@ -39,21 +66,22 @@ async def handler(route):
     u = urlparse(url)
     if u.path in ("", "/"):
         return await route.fulfill(content_type="text/html", body="<html><body><nav>home</nav></body></html>")
-    if u.path == "/api/v1/users/web_profile_info/":
-        if route.request.headers.get("x-ig-app-id") != kk.APP_ID:
-            return await route.fulfill(status=400, body='{"message": "useragent mismatch"}')
-        user = parse_qs(u.query)["username"][0]
-        kind = user.split("_")[0]
-        if kind == "gone":
-            return await route.fulfill(status=404, body="{}")
-        if kind == "block":
-            return await route.fulfill(status=429, content_type="application/json",
-                                       body='{"message": "Please wait a few minutes before you try again.", "status": "fail"}')
-        if kind == "login":
-            return await route.fulfill(status=200, content_type="text/html", body="<html><body>Log in</body></html>")
-        body = {"data": {"user": {"username": user, **USERS[kind]}}, "status": "ok"}
-        return await route.fulfill(content_type="application/json", body=json.dumps(body))
-    await route.fulfill(status=404, body="")
+    if u.path == "/graphql/query":
+        user = parse_qs(u.query)["u"][0]
+        return await route.fulfill(content_type="application/json", body=graphql(user, kind_of(user)))
+    if u.path.startswith("/accounts/login"):
+        return await route.fulfill(content_type="text/html", body='<html><body><input name="username"></body></html>')
+    user = u.path.strip("/").split("/")[0]
+    kind = kind_of(user)
+    if kind == "gone":
+        return await route.fulfill(content_type="text/html", body="<html><body><h2>Sorry, this page isn't available.</h2></body></html>")
+    if kind == "block":
+        return await route.fulfill(content_type="text/html",
+                                   body="<html><body><p>Please wait a few minutes before you try again.</p></body></html>")
+    if kind == "login":
+        return await route.fulfill(status=302, headers={"Location": "https://www.instagram.com/accounts/login/"}, body="")
+    body = PROFILE.replace("__KIND__", kind).replace("__SSR__", ssr(user) if kind == "ssr" else "")
+    await route.fulfill(content_type="text/html", body=body)
 
 
 orig = w.open_context

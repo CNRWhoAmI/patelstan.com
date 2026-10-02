@@ -130,6 +130,11 @@ sahip yazmadığı için dosyayı `downloads/<hesap>/` altına koy ya da
   devam eder. Ctrl+C: açık sekmeler eldeki profili bitirip durur (ikinci Ctrl+C
   hemen çıkar).
 - Liste export anının görüntüsü. Sonradan attığın istekler için yeni export lazım.
+- `istek_at` ile gönderdiğin istekleri geri çekmek için export gerekmez:
+  `./geri_cek.sh --account ornek.hesap --gonderilenler` listeyi `follow_state.json`'dan
+  alır. Sadece gönderildikten sonra henüz geri çekilmemiş olanlara bakar; bu
+  hesabın eski geri çekme kayıtları başka isteklere ait olduğu için sayılmaz.
+  Geri çekilenler "gönderildi" olarak kalır, `istek_at` onlara tekrar istek atmaz.
 
 ## Bio'dan şehre göre ayırma
 
@@ -207,20 +212,59 @@ davranışı.
 ## Kabul oranını ölçme
 
 `istek_at` ile gönderilen isteklerden kaçının kabul edildiğini ölçer. Hiçbir
-şeye tıklamaz: her kişi için Instagram'ın profil bilgisini okur (gizli mi,
-takip ediliyor mu, istek bekliyor mu).
+şeye tıklamaz: her kişinin profil sayfasını açar; isteğin durumunu takip
+butonundan (Following / Requested / Follow), hesabın gizli olup olmadığını da
+sayfanın açılırken yüklediği profil bilgisinden okur.
 
 ```bash
 ./kabul_kontrol.sh --account ornek.hesap
 ```
 
 - Sonuçlar: kabul etti / hâlâ bekliyor / reddetti ya da istek düştü / açık hesap
-  (doğrudan takip edilmiş, kabul sayılmaz) / hesap yok.
-- Kabul oranı sadece gizli hesaplara giden istekler üzerinden hesaplanır.
+  (doğrudan takip edilmiş, kabul sayılmaz) / takipte ama gizli mi anlaşılamadı
+  (orana dahil edilmez) / hesap yok.
+- Kabul oranı sadece gizli hesaplara giden istekler üzerinden hesaplanır;
+  kabul eden, bekleyen ve reddedenlerin yanında yüzdeleri de yazar.
+- İsteği reddeden ya da düşenlerin listesi `reddedenler-<hesap>.txt`'ye yazılır
+  ve ekranda da gösterilir (kişisel veri, sadece bu bilgisayarda).
+- İkinci ölçümden itibaren bir önceki ölçüme göre değişenleri (ör. "hâlâ
+  bekliyor → reddetti ya da istek düştü: 3") ve bütün ölçümlerin geçmişini
+  (tarih, kabul oranı, reddeden sayısı) gösterir.
 - "Reddetti ya da istek düştü": Instagram engel sırasında isteği sonradan geri
   almışsa da buraya düşer; ikisi birbirinden ayırt edilemez.
 - Her çalıştırma `kabul_kontrol.json`'a tarihli ölçüm olarak eklenir (kişi bazlı,
   sadece bu bilgisayarda). Birkaç gün arayla çalıştırıp oranın nasıl değiştiğini
   görebilirsin. Ekrana sadece toplu sayılar basılır.
-- Instagram engellerse ya da oturum düşerse durur, o ana kadar ölçülenleri kaydeder.
+- Gönderildikten sonra geri çekilen istekler ölçüme katılmaz (artık kabul
+  edilemezler); kaç tane olduğu ayrıca yazılır. Önceki ölçümle ortak kişi yoksa
+  (ör. yeni bir partiyi ölçüyorsan) "değişenler" satırı çıkmaz.
+- Instagram engellerse, oturum düşerse ya da üst üste 3 profil sayfası
+  tanınmazsa durur, o ana kadar ölçülenleri kaydeder.
 - Sahte Instagram'a karşı testler: `.venv/bin/python tests/run_kabul_tests.py`
+
+## Günlük tur
+
+Geri çekme, istek atma ve istatistiği tek komutta birleştirir. Zamanlayıcıya
+bağlı değil, her gün sen çalıştırırsın:
+
+```bash
+./gunluk.sh hedefler-ankara.txt                  # süresi dolanları sonuçlandır, sıradaki 90 kişiye istek at
+./gunluk.sh hedefler-ankara.txt --dry-run        # hiçbir şeye tıklamadan ne yapılacağını göster
+./gunluk.sh hedefler-ankara.txt --istatistik     # Instagram'a bağlanmadan parti parti sonuçlar
+./gunluk.sh hedefler-ankara.txt --parti 60 --saat 24 --hedef-dk 30
+```
+
+1. En az `--saat` (varsayılan 20) saat önce gönderilmiş, henüz sonuçlanmamış
+   isteklerin profiline bakar: kabul edilmişse dokunmaz ve **kabul** yazar, hâlâ
+   bekliyorsa **geri çeker**, istek düşmüşse **reddetti ya da düştü** yazar.
+   Sonuçlanan kişiye bir daha bakılmaz (`gunluk_state.json`).
+2. Bu adımda engel gelmediyse (ya da Ctrl+C'ye basılmadıysa) listede sıradaki
+   `--parti` (varsayılan 90) profile `istek_at` gibi istek atar: sadece gizli
+   hesaplar, kaldığı yerden. Geri çekilenlere bir daha istek atılmaz.
+3. Gönderim gününe göre partileri yazar: kaç istek, kaçı kabul edildi (oran),
+   kaçı bekliyordu ve geri çekildi, kaçı reddetti ya da düştü, listede kaç kişi kaldı.
+
+- `--saat` 24 değil 20: sabah her gün aynı saatte çalıştırmasan da dünkü parti
+  sonuçlanır.
+- `--hedef-dk` ve `--parallel` iki adıma ayrı ayrı uygulanır.
+- Sahte Instagram'a karşı testler: `.venv/bin/python tests/run_gunluk_tests.py`
